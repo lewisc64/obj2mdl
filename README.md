@@ -44,7 +44,7 @@ The contents of `MODEL_NAME.json` should look like this:
   },
   
   "qc": {
-	"surfaceprop": "wood",
+    "surfaceprop": "wood",
   }
   
 }
