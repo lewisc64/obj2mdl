@@ -26,7 +26,7 @@ The `config.json` file should look like this:
 
 ### Model Config
 
-To get the auto-generated collision model, simply set `obj_collision_model` to the value of `obj`. If `material -> use_file` is true, then the materials specified in the OBJ file will be used. Otherwise, every face will recieve the material name given by `material -> name`.
+To get the auto-generated collision model, simply set `obj_collision_model` to the value of `obj`, and make sure `qc -> collisionmodel -> concave` is `false`. If `material -> use_file` is true, then the materials specified in the OBJ file will be used. Otherwise, every face will recieve the material name given by `material -> name`.
 
 The contents of `MODEL_NAME.json` should look like this:
 
