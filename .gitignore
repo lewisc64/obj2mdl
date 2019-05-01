@@ -1,3 +1,10 @@
+*.obj
+*.smd
+*.qc
+*.mtl
+*.json
+!obj2mdl/config.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -40,8 +40,17 @@ class Shape:
 def get_filename(path):
     return re.search(r"([^.\\/]+)\.", path).group(1)
 
+def get_folder(path):
+    return "\\".join(re.split("[\\\\/]+", path)[:-1])
+
 def remove_extension(path):
     return path.split(".")[0]
+
+def replace_extension(path, extension):
+    if "." in extension:
+        return remove_extension(path) + extension
+    else:
+        return remove_extension(path) + "." + extension
 
 def get_qc_path(path):
     return remove_extension(path) + ".qc"
@@ -140,8 +149,11 @@ def generate_smd(shape):
                 normal = Vertex(0, 0, 0)
             else:
                 normal = shape.normal_vertices[vn]
-            
-            out_point = shape.texture_coordinates[vt]
+
+            if vt is None:
+                out_point = (0, 0)
+            else:
+                out_point = shape.texture_coordinates[vt]
             out_vertex = [vertex.x, -vertex.z, vertex.y]
             out_normal = [normal.x, -normal.z, normal.y]
             
@@ -178,34 +190,66 @@ def stringify_qc(qc):
 def set_qc_property(qc, property_name, value):
     if isinstance(value, bool):
         if value:
+            print("tys")
             qc[property_name] = ""
+            print(qc)
     else:
         qc[property_name] = value
 
-def configure_qc_property(qc, model_config, property_name, default):
-    if property_name in model_config["qc"]:
-        set_qc_property(qc, property_name, model_config["qc"][property_name])
+def configure_qc_property(qc, config, property_name, default):
+    print(property_name, config, default)
+    if property_name in config:
+        set_qc_property(qc, property_name, config[property_name])
     else:
         set_qc_property(qc, property_name, default)
 
+def configure_qc_properties(qc, config, defaults):
+    keys = list(set(list(config.keys()) + list(defaults.keys())))
+    print(keys)
+    for key in keys:
+
+        if key in defaults:
+            default = defaults[key]
+        else:
+            default = None
+        
+        if isinstance(default, list):
+            if key in config and isinstance(config[key], list):
+                qc[key] = [config[key][0], {}]
+                print("CONFIG", config[key][1])
+                configure_qc_properties(qc[key][1], config[key][1], default[1])
+            else:
+                qc[key] = [default[0], {}]
+                configure_qc_properties(qc[key][1], config[key] if key in config else default[1], default[1])
+        else:
+            configure_qc_property(qc, config, key, default)
+
 def generate_qc(model_config):
+    
     name = model_config["name"]
-    qc = {
+
+    smd = replace_extension(model_config["obj"], "smd")
+
+    defaults = {
         "modelname": "{}/{}.mdl".format(name, name),
-        "body studio": "{}.smd".format(name),
-        "surfaceprop": model_config["qc"]["surfaceprop"],
+        "body studio": smd,
         "CDMaterials": "models/{}/".format(name),
-        "sequence idle": "{}.smd".format(name),
+        "sequence idle": smd,
+        "staticprop": True,
+        "scale": 2,
+        "surfaceprop": "wood",
         "collisionmodel": [
-            "{}.smd".format(name),
-            {}
+            replace_extension(model_config["obj_collision_model"], "smd"),
+            {
+                "automass": True,
+                "concave": True
+            }
         ]
     }
 
-    configure_qc_property(qc, model_config, "staticprop", True)
-    configure_qc_property(qc, model_config, "scale", 2)
-    configure_qc_property(qc["collisionmodel"][1], model_config, "automass", True)
-    configure_qc_property(qc["collisionmodel"][1], model_config, "concave", False)
+    qc = {}
+
+    configure_qc_properties(qc, model_config["qc"], defaults)
     
     return stringify_qc(qc)
 
@@ -220,30 +264,34 @@ def png_to_tga(png_path, output_path):
     img.save(output_path, "TGA")
 
 def tga_to_vtf(name):
-    subprocess.run([config["engine_path"] + "/vtex.exe", "-game", config["game_path"], "-shader", "LightmappedGeneric", "-vmtparam", "$surfaceprop", config["surfaceprop"], "-dontusegamedir", name])
+    subprocess.run([os.path.join(config["engine_path"], "vtex.exe"), "-game", config["game_path"], "-shader", "LightmappedGeneric", "-vmtparam", "$surfaceprop", config["surfaceprop"], "-dontusegamedir", "-nop4", name])
 
 def png_to_vtf(path):
     name = get_filename(path)
-
     png_to_tga(path, "{}.tga".format(name))
     tga_to_vtf(name)
 
 def build_mdl(qc_path):
-    subprocess.run([config["engine_path"] + "/studiomdl.exe", "-game", config["game_path"], "-nop4", "-verbose", qc_path])
+    subprocess.run([os.path.join(config["engine_path"], "studiomdl.exe"), "-game", config["game_path"], "-nop4", "-verbose", qc_path])
 
-def obj_to_mdl(path, model_config):
-    
+def obj_to_mdl(folder, model_config):
+
     name = model_config["name"]
-    qc_path = remove_extension(path) + ".qc"
-    smd_path = remove_extension(path) + ".smd"
-    
-    shape = load_obj(path, model_config)
-    shape.assign_materials(model_config["material"]["name"])
-    save_smd(shape, smd_path)
 
-    if model_config["auto_generate_qc"]:
+    models = [os.path.join(folder, path) for path in [model_config["obj"], model_config["obj_collision_model"]]]
+
+    for obj_path in models:
+        if obj_path is not None:
+            shape = load_obj(obj_path, model_config)
+            shape.assign_materials(model_config["material"]["name"])
+            save_smd(shape, replace_extension(obj_path, "smd"))
+
+    if not isinstance(model_config["qc"], str):
+        qc_path = os.path.join(folder, "{}.qc".format(name))
         save_qc(model_config, qc_path)
-    
+    else:
+        qc_path = os.path.join(folder, model_config["qc"])
+
     build_mdl(qc_path)
 
     try:
@@ -257,7 +305,7 @@ if __name__ == "__main__":
 
     if "-help" in sys.argv or "-usage" in sys.argv:
         print("Example usage:")
-        print("obj2mdl model.obj\n")
+        print("obj2mdl model.json\n")
         print("Optional flags:")
         print("    -nopause")
         halt = True
@@ -266,12 +314,10 @@ if __name__ == "__main__":
 
         for item in sys.argv[1:]:
             if item[0] != "-":
-                path = item
+                config_path = item
                 break
         else:
-            path = input("Path to OBJ: ")
-
-        config_path = remove_extension(path) + ".json"
+            config_path = input("Path to JSON model config: ")
 
         try:
             file = open(config_path, "r")
@@ -282,7 +328,7 @@ if __name__ == "__main__":
             halt = True
 
         if not halt:
-            obj_to_mdl(path, model_config)
+            obj_to_mdl(get_folder(config_path), model_config)
 
     if "-nopause" not in sys.argv:
         input("Press enter to exit...")
