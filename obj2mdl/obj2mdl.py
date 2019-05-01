@@ -190,14 +190,11 @@ def stringify_qc(qc):
 def set_qc_property(qc, property_name, value):
     if isinstance(value, bool):
         if value:
-            print("tys")
             qc[property_name] = ""
-            print(qc)
     else:
         qc[property_name] = value
 
 def configure_qc_property(qc, config, property_name, default):
-    print(property_name, config, default)
     if property_name in config:
         set_qc_property(qc, property_name, config[property_name])
     else:
@@ -205,7 +202,6 @@ def configure_qc_property(qc, config, property_name, default):
 
 def configure_qc_properties(qc, config, defaults):
     keys = list(set(list(config.keys()) + list(defaults.keys())))
-    print(keys)
     for key in keys:
 
         if key in defaults:
@@ -216,7 +212,6 @@ def configure_qc_properties(qc, config, defaults):
         if isinstance(default, list):
             if key in config and isinstance(config[key], list):
                 qc[key] = [config[key][0], {}]
-                print("CONFIG", config[key][1])
                 configure_qc_properties(qc[key][1], config[key][1], default[1])
             else:
                 qc[key] = [default[0], {}]
